@@ -5,7 +5,7 @@ module Assembler(BFPrimitive(..), BFSnippet(..), BFAsmInstruction(..), AssemblyE
                  prim, next, prev, dec, inc, loop,
                  fromBF, zero, clearNext, copyTimes, copyTo,
                  emit,
-                 allocateBlocks) where
+                 allocateBlocks, emitBlocks, wrapSnippets) where
 
 import Control.Monad.Writer
 import Control.Monad.State
@@ -15,18 +15,19 @@ import Data.Ord
 import qualified Data.Map as Map
 
 
-data BFPrimitive = Next | Prev | Inc | Dec | Read | Print | Loop | EndLoop
+data BFPrimitive = Next | Prev | Inc | Dec | Read | Print | Loop | EndLoop | Comment String
                  deriving (Eq)
 
 instance Show BFPrimitive where
-  show Next    = ">"
-  show Prev    = "<"
-  show Inc     = "+"
-  show Dec     = "-"
-  show Read    = ","
-  show Print   = "."
-  show Loop    = "["
-  show EndLoop = "]"
+  show Next        = ">"
+  show Prev        = "<"
+  show Inc         = "+"
+  show Dec         = "-"
+  show Read        = ","
+  show Print       = "."
+  show Loop        = "["
+  show EndLoop     = "]"
+  show (Comment s) = "\n" ++ s ++ "\n"
 
 instance Read BFPrimitive where
   readsPrec _ ('>':xs) = [(Next, xs)]
@@ -66,7 +67,8 @@ data BFAsmInstruction = Primitive BFPrimitive
                                                   
 data AssemblyEnv = AssemblyEnv { 
   label :: String -> Int, 
-  current :: Int }
+  current :: Int,  
+  count :: Int}
 
 newtype CodeGenerator a = Generator {
   runGenerator :: WriterT [BFPrimitive] (State AssemblyEnv) a
@@ -74,7 +76,20 @@ newtype CodeGenerator a = Generator {
 
 liftGenerator m = Generator (lift m)
 getEnv   = liftGenerator get
-putenv e = liftGenerator $ put e
+putEnv e = liftGenerator $ put e
+
+
+getLabel s = do
+  env <- getEnv
+  return $ (label env) s
+
+getCurrent = do
+  env <- getEnv
+  return $ current env
+
+getCount = do
+  env <- getEnv
+  return $ count env
 
 runCodeGenerator s g = case runState (runWriterT (runGenerator g)) s of
   ((_, code), _) -> BFSnippet code
@@ -98,6 +113,8 @@ loop w = do
   w
   prim EndLoop
 
+comment s = prim (Comment s)
+
 fromBF ss = tell $ read ss 
 
 zero = fromBF "[-]"
@@ -108,6 +125,7 @@ dup = do
   copyTo (-2)
   prev
 
+push i = fromBF $ replicate i '+'
 
 clearNext n = do
   replicateM_ n $ next >> zero
@@ -146,11 +164,17 @@ emit Swap = do -- fromBF ">[-]<[->+<]<[->+<]>>[-<<+>>]<"
 emit (Push i) = do 
   next
   zero
-  fromBF $ replicate i '+'
+  push i
 
 emit (Target s) = do
-  env <- getEnv
-  emit . Push . label env $ s
+  i <- getLabel s
+  cur <- getCurrent
+  count <- getCount
+  next
+  zero
+  if i == cur 
+    then push count
+    else push $ (i - cur) `mod` count
 
 emit Add = do
   copyTo (-1)
@@ -186,13 +210,37 @@ type BFAsmBlocks = Map.Map String [BFAsmInstruction]
 
 allocateBlocks :: BFAsmBlocks -> String -> Int
 allocateBlocks blocks = flip (Map.findWithDefault 0) $ labels
-  where labels = Map.fromList $ zip (Map.keys blocks) [1..]
+  where labels = Map.fromList $ [("exit", 1)] ++ zip (Map.keys . Map.delete "exit" $ blocks) [2..]
         
 emitBlocks :: BFAsmBlocks -> [BFSnippet]
 emitBlocks blocks = map emitBlock sortedBlocks
   where ids = allocateBlocks blocks 
         sortedBlocks = sortBy (comparing $ ids . fst) (Map.toList blocks)
-        emitBlock (name, block) = runCodeGenerator (AssemblyEnv { label = ids, current = ids name }) $
-                                  mapM_ emit block
+        emitBlock (name, block) = runCodeGenerator (AssemblyEnv { label = ids, 
+                                                                  current = ids name, 
+                                                                  count = length sortedBlocks }) $ 
+                                  comment name >> wrap block
+        wrap block = do
+          clearNext 1
+          next; inc; next; inc
+          prev; prev
+          dec
+          loop $ do
+            next; next; 
+            dec
+          next          
+          comment "actual block"
+          loop $ do
+            dec
+            prev; prev
+            mapM_ emit block
+            clearNext 3
+            next; next; next
+          prev; prev; prev
+          
+wrapSnippets :: [BFSnippet] -> BFSnippet
+wrapSnippets ss = BFSnippet $ [Inc, Loop, Inc] ++ concatMap snippetToCode ss ++ [Dec, EndLoop]
+  where snippetToCode (BFSnippet s) = s
+          
 
 main = putStrLn "Hello"
