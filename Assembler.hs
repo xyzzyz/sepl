@@ -1,8 +1,22 @@
-module Assembler where
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
+module Assembler(BFPrimitive(..), BFSnippet(..), BFAsmInstruction(..), AssemblyEnv(..), 
+                 runCodeGenerator,
+                 prim, next, prev, dec, inc, loop,
+                 fromBF, zero, clearNext, copyTimes, copyTo,
+                 emit,
+                 allocateBlocks) where
 
 import Control.Monad.Writer
+import Control.Monad.State
+
+import Data.List
+import Data.Ord
+import qualified Data.Map as Map
+
 
 data BFPrimitive = Next | Prev | Inc | Dec | Read | Print | Loop | EndLoop
+                 deriving (Eq)
 
 instance Show BFPrimitive where
   show Next    = ">"
@@ -31,6 +45,7 @@ instance Read BFPrimitive where
       where [(ps, xs'')] = readList xs'
 
 data BFSnippet = BFSnippet [BFPrimitive]
+                 deriving (Eq)
 
 instance Show BFSnippet where
   show (BFSnippet s) = concatMap show s
@@ -44,43 +59,71 @@ data BFAsmInstruction = Primitive BFPrimitive
                       | Swap
                       | Target String
                       | Push Int
-                        
+                      | Add
+                      | Sub
+                      | Mul
+                      deriving (Eq)
+                                                  
 data AssemblyEnv = AssemblyEnv { 
   label :: String -> Int, 
   current :: Int }
 
-withAssembling :: Writer [BFPrimitive] a -> BFSnippet
+newtype CodeGenerator a = Generator {
+  runGenerator :: WriterT [BFPrimitive] (State AssemblyEnv) a
+  } deriving (Monad, MonadWriter [BFPrimitive])
+
+liftGenerator m = Generator (lift m)
+getEnv   = liftGenerator get
+putenv e = liftGenerator $ put e
+
+runCodeGenerator s g = case runState (runWriterT (runGenerator g)) s of
+  ((_, code), _) -> BFSnippet code
+
+
+--withAssembling :: Writer [BFPrimitive] a -> BFSnippet
 withAssembling w = BFSnippet ss  
   where (_, ss) = runWriter w 
 
-prim :: BFPrimitive -> Writer [BFPrimitive] ()
+--prim :: BFPrimitive -> Writer [BFPrimitive] ()
 prim x = tell [x]
 
-next :: Writer [BFPrimitive] ()
+--next :: Writer [BFPrimitive] ()
 next = prim Next
 
-prev :: Writer [BFPrimitive] ()
+--prev :: Writer [BFPrimitive] ()
 prev = prim Prev
 
-dec :: Writer [BFPrimitive] ()
+--dec :: Writer [BFPrimitive] ()
 dec = prim Dec
 
-inc :: Writer [BFPrimitive] ()
+--inc :: Writer [BFPrimitive] ()
 inc = prim Inc
 
-loop :: Writer [BFPrimitive] a -> Writer [BFPrimitive] ()
+--loop :: Writer [BFPrimitive] a -> Writer [BFPrimitive] ()
 loop w = do
   prim Loop
   w
   prim EndLoop
 
-fromBF :: String -> Writer [BFPrimitive] ()
+--fromBF :: String -> Writer [BFPrimitive] ()
 fromBF ss = tell $ read ss 
 
-zero :: Writer [BFPrimitive] ()
+--zero :: Writer [BFPrimitive] ()
 zero = fromBF "[-]"
 
-copyTimes :: Int -> Writer [BFPrimitive] ()
+dup = do
+  copyTimes 2
+  next; next; 
+  copyTo (-2)
+  prev
+
+
+--clearNext :: Int -> Writer [BFPrimitive] ()
+clearNext n = do
+  replicateM_ n $ next >> zero
+  replicateM_ n $ prev
+
+--copyTimes :: Int -> Writer [BFPrimitive] ()
 copyTimes n = do
   let (go, ret) = if n >= 0 then (next, prev) else (prev, next)
   loop $ do
@@ -88,7 +131,7 @@ copyTimes n = do
     replicateM_ (abs n) $ go >> inc
     replicateM_ (abs n) $ ret
 
-copyTo :: Int -> Writer [BFPrimitive] ()
+--copyTo :: Int -> Writer [BFPrimitive] ()
 copyTo n = do
   let (go, ret) = if n >= 0 then (next, prev) else (prev, next)
   loop $ do
@@ -97,20 +140,15 @@ copyTo n = do
     inc
     replicateM_ (abs n) $ ret
 
+--emit :: BFAsmInstruction -> 
 emit (Primitive x) = prim x
 
 emit Dup = do -- fromBF ">[-]>[-]<<[->+>+<<]>>[-<<+>>]<"
-  next; zero
-  next; zero
-  prev; prev
-  copyTimes 2
-  next; next; 
-  copyTo (-2)
-  prev
-
+  clearNext 2
+  dup
+  
 emit Swap = do -- fromBF ">[-]<[->+<]<[->+<]>>[-<<+>>]<"
-  next; zero
-  prev
+  clearNext 1
   copyTimes 1
   prev
   copyTimes 1
@@ -123,9 +161,51 @@ emit (Push i) = do
   zero
   fromBF $ replicate i '+'
 
+emit (Target s) = do
+  env <- getEnv
+  emit . Push . label env $ s
 
+emit Add = do
+  copyTo (-1)
+  prev
 
+emit Sub = do 
+  loop $ do
+    dec
+    prev
+    dec
+    next
+  prev
+  
+emit Mul = do  
+  clearNext 3
+  copyTo 3
+  prev
+  copyTo 1
+  dup
+  dup
+  next; next
+  loop $ do
+    dec
+    prev
+    prev
+    copyTo (-2)
+    prev
+    dup
+    next; next
+  prev; prev; prev; prev
+  
+type BFAsmBlocks = Map.Map String [BFAsmInstruction]
+
+allocateBlocks :: BFAsmBlocks -> String -> Int
+allocateBlocks blocks = flip (Map.findWithDefault 0) $ labels
+  where labels = Map.fromList $ zip (Map.keys blocks) [1..]
+        
+emitBlocks :: BFAsmBlocks -> [BFSnippet]
+emitBlocks blocks = map emitBlock sortedBlocks
+  where ids = allocateBlocks blocks 
+        sortedBlocks = sortBy (comparing $ ids . fst) (Map.toList blocks)
+        emitBlock (name, block) = runCodeGenerator (AssemblyEnv { label = ids, current = ids name }) $
+                                  mapM_ emit block
 
 main = putStrLn "Hello"
-
-  
