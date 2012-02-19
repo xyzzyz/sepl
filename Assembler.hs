@@ -80,35 +80,26 @@ runCodeGenerator s g = case runState (runWriterT (runGenerator g)) s of
   ((_, code), _) -> BFSnippet code
 
 
---withAssembling :: Writer [BFPrimitive] a -> BFSnippet
 withAssembling w = BFSnippet ss  
   where (_, ss) = runWriter w 
 
---prim :: BFPrimitive -> Writer [BFPrimitive] ()
 prim x = tell [x]
 
---next :: Writer [BFPrimitive] ()
 next = prim Next
 
---prev :: Writer [BFPrimitive] ()
 prev = prim Prev
 
---dec :: Writer [BFPrimitive] ()
 dec = prim Dec
 
---inc :: Writer [BFPrimitive] ()
 inc = prim Inc
 
---loop :: Writer [BFPrimitive] a -> Writer [BFPrimitive] ()
 loop w = do
   prim Loop
   w
   prim EndLoop
 
---fromBF :: String -> Writer [BFPrimitive] ()
 fromBF ss = tell $ read ss 
 
---zero :: Writer [BFPrimitive] ()
 zero = fromBF "[-]"
 
 dup = do
@@ -118,12 +109,10 @@ dup = do
   prev
 
 
---clearNext :: Int -> Writer [BFPrimitive] ()
 clearNext n = do
   replicateM_ n $ next >> zero
   replicateM_ n $ prev
 
---copyTimes :: Int -> Writer [BFPrimitive] ()
 copyTimes n = do
   let (go, ret) = if n >= 0 then (next, prev) else (prev, next)
   loop $ do
@@ -131,7 +120,6 @@ copyTimes n = do
     replicateM_ (abs n) $ go >> inc
     replicateM_ (abs n) $ ret
 
---copyTo :: Int -> Writer [BFPrimitive] ()
 copyTo n = do
   let (go, ret) = if n >= 0 then (next, prev) else (prev, next)
   loop $ do
@@ -140,7 +128,6 @@ copyTo n = do
     inc
     replicateM_ (abs n) $ ret
 
---emit :: BFAsmInstruction -> 
 emit (Primitive x) = prim x
 
 emit Dup = do -- fromBF ">[-]>[-]<<[->+>+<<]>>[-<<+>>]<"
