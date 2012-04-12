@@ -3,7 +3,7 @@
 module Assembler(BFPrimitive(..), BFSnippet(..), BFAsmInstruction(..), AssemblyEnv(..), 
                  runCodeGenerator,
                  prim, next, prev, dec, inc, loop,
-                 fromBF, zero, clearNext, copyTimes, copyTo,
+                 fromBF, zero, clearNext, copyTimesTo,
                  emit,
                  allocateBlocks, emitBlocks, wrapSnippets) where
 
@@ -56,9 +56,11 @@ instance Read BFSnippet where
     where [(s, xs')] = readList xs
     
 data BFAsmInstruction = Primitive BFPrimitive
-                      | Dup
+                      | DupX Int
                       | Swap
                       | Target String
+                      | ReturnTo String
+                      | Return
                       | Push Int
                       | Add
                       | Sub
@@ -119,10 +121,13 @@ fromBF ss = tell $ read ss
 
 zero = fromBF "[-]"
 
-dup = do
-  copyTimes 2
-  next; next; 
-  copyTo (-2)
+move n = replicateM_ (abs n) (if n > 0 then next else prev)
+
+dup n = do
+  move (-n)
+  copyTimesTo 2 (n+1)
+  move (n+2)
+  copyTimesTo 1 (-n-2)
   prev
 
 push i = fromBF $ replicate i '+'
@@ -131,34 +136,27 @@ clearNext n = do
   replicateM_ n $ next >> zero
   replicateM_ n $ prev
 
-copyTimes n = do
-  let (go, ret) = if n >= 0 then (next, prev) else (prev, next)
-  loop $ do
-    dec
-    replicateM_ (abs n) $ go >> inc
-    replicateM_ (abs n) $ ret
-
-copyTo n = do
-  let (go, ret) = if n >= 0 then (next, prev) else (prev, next)
-  loop $ do
-    dec 
-    replicateM_ (abs n) $ go
-    inc
-    replicateM_ (abs n) $ ret
-
+copyTimesTo t n = loop $ do
+  dec
+  move n
+  inc
+  replicateM_ (t-1) $ next >> inc
+  move (-(n+t-1))
+  
+    
 emit (Primitive x) = prim x
 
-emit Dup = do -- fromBF ">[-]>[-]<<[->+>+<<]>>[-<<+>>]<"
+emit (DupX n) = do -- fromBF ">[-]>[-]<<[->+>+<<]>>[-<<+>>]<"
   clearNext 2
-  dup
+  dup n 
   
 emit Swap = do -- fromBF ">[-]<[->+<]<[->+<]>>[-<<+>>]<"
   clearNext 1
-  copyTimes 1
+  copyTimesTo 1 1
   prev
-  copyTimes 1
+  copyTimesTo 1 1
   next; next
-  copyTo (-2)
+  copyTimesTo 1 (-2)
   prev
 
 emit (Push i) = do 
@@ -170,14 +168,26 @@ emit (Target s) = do
   i <- getLabel s
   cur <- getCurrent
   count <- getCount
-  next
-  zero
+  next; zero
   if i == cur 
     then push count
     else push $ (i - cur) `mod` count
 
+emit (ReturnTo s) = do
+  i <- getLabel s
+  next
+  zero
+  push i
+
+emit Return = do
+  cur <- getCurrent
+  copyTimesTo 1 (-2)
+  prev
+  clearNext 3
+  fromBF $ replicate cur '+'
+
 emit Add = do
-  copyTo (-1)
+  copyTimesTo 1 (-1)
   prev
 
 emit Sub = do 
@@ -190,19 +200,19 @@ emit Sub = do
   
 emit Mul = do  
   clearNext 3
-  copyTo 3
+  copyTimesTo 1 3
   prev
-  copyTo 1
-  dup
-  dup
+  copyTimesTo 1 1
+  dup 0
+  dup 0
   next; next
   loop $ do
     dec
     prev
     prev
-    copyTo (-2)
+    copyTimesTo 1 (-2)
     prev
-    dup
+    dup 0
     next; next
   prev; prev; prev; prev
   
@@ -232,14 +242,15 @@ emitBlocks blocks = map emitBlock sortedBlocks
           comment "actual block"
           loop $ do
             dec
-            prev; prev
+            next; dec
+            prev; prev; prev
             mapM_ emit block
             clearNext 3
             next; next; next
           prev; prev; prev
           
 wrapSnippets :: [BFSnippet] -> BFSnippet
-wrapSnippets ss = BFSnippet $ [Inc, Loop, Inc] ++ concatMap snippetToCode ss ++ [Dec, EndLoop]
+wrapSnippets ss = BFSnippet $ [Next, Inc, Loop, Inc] ++ concatMap snippetToCode ss ++ [Dec, EndLoop]
   where snippetToCode (BFSnippet s) = s
           
 
