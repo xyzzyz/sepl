@@ -1,0 +1,20 @@
+Name:                sepl
+Version:             0.0
+Description:         simple compiler targeting brainfuck
+License:             GPL-3
+Author:              adamm@mimuw.edu.pl
+Maintainer:          adamm@mimuw.edu.pl
+Build-Type:          Simple
+Cabal-Version:       >=1.2
+
+Executable TestTypeChecker
+  Main-is:           TestTypeChecker.hs
+  Build-Depends:     base, containers, mtl,
+                     parsec,
+                     HUnit,
+                     filepath, directory
+
+Executable TestParser
+  Main-is:           TestParser.hs
+  Build-Depends:     base, containers, mtl,
+                     parsec
