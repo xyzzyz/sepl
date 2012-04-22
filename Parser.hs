@@ -1,5 +1,6 @@
 module Parser(translationUnit) where
 
+import Data.Char
 import Data.Maybe
 
 import Control.Monad
@@ -80,6 +81,7 @@ input = do
 
 term = (fmap StringLiteral stringLiteral)
        <|> (fmap (IntLiteral . fromIntegral)  integer)
+       <|> (fmap (IntLiteral . fromIntegral . ord) charLiteral)
        <|> (try sizeof)
        <|> (try varAssignment)
        <|> (try arrAssignment)

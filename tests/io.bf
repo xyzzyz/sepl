@@ -11,7 +11,7 @@ void print_int_helper(int a; locals int i, int j; arrays [int] out;) {
   };
   j = 0;
   while(j < i) {
-    output out[i - j - 1] + 48;
+    output out[i - j - 1] + '0';
     j = j + 1;
   };
   return;
@@ -35,6 +35,7 @@ void hello(int a; locals int i; arrays [int] arr ;) {
 void main(; locals ; arrays ;) {
   hello(0; arrays 100);
   print_int(6667);
+  output '\n';
   return;
 };
 
