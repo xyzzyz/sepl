@@ -4,4 +4,9 @@ int foo(; locals ; arrays ;) {
   } else {
     5+2;
   };
+  return 42;
+};
+
+void main(; locals; arrays;) {
+  return;
 };

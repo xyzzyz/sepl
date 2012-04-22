@@ -19,4 +19,9 @@ int foo(int a, bool b; locals int c; arrays;) {
       //b = !b;
     };
   };
+  return a*a+a;
+};
+
+void main(; locals; arrays;) {
+  return;
 };

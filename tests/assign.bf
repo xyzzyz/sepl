@@ -4,4 +4,9 @@ int foo([int] a, bool b; locals int c; arrays;) {
   } else if (c < 0) {
     c = 2;
   } else {};
+  return 2;
+};
+
+void main(; locals; arrays;) {
+  return;
 };

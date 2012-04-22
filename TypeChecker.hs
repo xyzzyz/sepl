@@ -59,7 +59,7 @@ getFunType name = do
 
 
 ensureType expected got = do
-  when (got /= expected) $
+  when (got /= expected) $ 
     throwError (TypeMismatch expected got)
 
 typeCheckBinaryOp expect ret e1 e2 = do
@@ -79,6 +79,13 @@ typeCheckBinaryLogicOp = typeCheckBinaryOp Bool Bool
 typeCheckExpr (IntLiteral _) = return Int
 
 typeCheckExpr (StringLiteral _ ) = return IntArray
+
+typeCheckExpr Input = return Int
+
+typeCheckExpr (Sizeof name) = do
+  t <- getType name
+  ensureType IntArray t
+  return Int
 
 typeCheckExpr (Variable name) = getType name
 
@@ -100,6 +107,13 @@ typeCheckExpr (ArrAssign name ix expr) = do
 
   return Int
 
+typeCheckExpr (ArrRef name expr) = do
+  t <- typeCheckExpr expr
+  ensureType Int t
+  at <- getType name
+  ensureType IntArray at
+  return Int
+
 typeCheckExpr (Add e1 e2) = typeCheckBinaryNumOp e1 e2
 typeCheckExpr (Sub e1 e2) = typeCheckBinaryNumOp e1 e2
 typeCheckExpr (Mul e1 e2) = typeCheckBinaryNumOp e1 e2
@@ -108,9 +122,8 @@ typeCheckExpr (Div e1 e2) = typeCheckBinaryNumOp e1 e2
 typeCheckExpr (Equals e1 e2) = do
   t1 <- typeCheckExpr e1
   t2 <- typeCheckExpr e2
-  ensureType t1 t2
-  when (t1 /= Int && t1 /= Bool) $
-    throwError $ TypeMismatch Int t1
+  ensureType Int t1
+  ensureType Int t2
   return Bool
 
 typeCheckExpr (LessThan e1 e2)       = typeCheckBinaryRelOp e1 e2
@@ -159,6 +172,19 @@ typeCheckStmt (IfElseStatement cond thn els) = do
   typeCheckStmt thn
   typeCheckStmt els
 
+typeCheckStmt (OutputStatement expr) = do
+  c <- typeCheckExpr expr
+  ensureType Int c
+  return ()
+
+typeCheckStmt (ReturnStatement maybeExpr) = do
+  t <- case maybeExpr of
+    Nothing -> return Void
+    Just e  -> typeCheckExpr e
+  e <- getEnv
+  ensureType (fromMaybe Void (curRetType e)) t
+  return ()
+
 typeCheck (FunctionDefinition {retType = retType,
                                name = name,
                                args = args,
@@ -168,9 +194,9 @@ typeCheck (FunctionDefinition {retType = retType,
   checkMultipleDefs $ args ++ locals ++ arrays
   env <- getEnv
   let updatedFunEnv = env { funEnv = Map.insert name (retType, map fst args, length arrays) (funEnv env)}
-  putEnv $ updatedFunEnv { varEnv = Map.fromList (map swap (args ++ locals)),
+  putEnv $ updatedFunEnv { varEnv = Map.fromList (map swap (args ++ locals ++ arrays)),
                            curRetType = Just retType}
-  mapM_ typeCheckStmt body
+  typeCheckStmt body
   putEnv updatedFunEnv
 
   where checkMultipleDefs [] = return ()

@@ -10,9 +10,12 @@ data Type = Int | Bool | Void | IntArray
 
 data Expression = IntLiteral Int
                 | StringLiteral String
+                | Input
+                | Sizeof String
                 | Variable String
                 | VarAssign String Expression
                 | ArrAssign String Expression Expression
+                | ArrRef String Expression
                 | Not Expression
                 | Or Expression Expression
                 | And Expression Expression
@@ -29,10 +32,14 @@ data Expression = IntLiteral Int
                 | Call String [Expression] [Expression]
                 deriving (Show)
 
+type TypedExpression = (Type, Expression)
+
 data Statement = ExpressionStatement Expression
                | BlockStatement [Statement]
                | WhileStatement Expression Statement
                | IfElseStatement Expression Statement Statement
+               | OutputStatement Expression
+               | ReturnStatement (Maybe Expression)
                deriving (Show)
 
 data FunctionDefinition = FunctionDefinition {
@@ -41,7 +48,7 @@ data FunctionDefinition = FunctionDefinition {
   args    :: [(Type, String)],
   locals  :: [(Type, String)],
   arrays  :: [(Type, String)],
-  body    :: [Statement]
+  body    :: Statement
   } deriving (Show)
 
 type TranslationUnit = [FunctionDefinition]

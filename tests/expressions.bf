@@ -9,4 +9,10 @@ int exprs(int a, int b; locals int c, int d, bool x, bool y, bool z; arrays;) {
   z = !x && y;
   x = !z || y;
   y = y ^^ z;
+  return a+b;
 };
+
+void main(; locals; arrays;) {
+  return;
+};
+

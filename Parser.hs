@@ -13,7 +13,7 @@ import Text.ParserCombinators.Parsec.Expr
 import AST
 
 primitiveTypes = ["void", "int", "bool"]
-keywords = ["if", "while", "locals", "arrays"]
+keywords = ["if", "while", "locals", "arrays", "input", "output", "return", "sizeof"]
 
 cDef = javaStyle { reservedNames = keywords ++ primitiveTypes}
 
@@ -64,11 +64,28 @@ arrAssignment = do
   e <- expr
   return $ ArrAssign name ix e
 
+arrRef = do
+  name <- identifier
+  ix <- brackets expr
+  return $ ArrRef name ix
+
+sizeof = do
+  reserved "sizeof"
+  arr <- identifier
+  return $ Sizeof arr
+
+input = do
+  reserved "input"
+  return Input
+
 term = (fmap StringLiteral stringLiteral)
        <|> (fmap (IntLiteral . fromIntegral)  integer)
-       <|> (try functionCall)
+       <|> (try sizeof)
        <|> (try varAssignment)
        <|> (try arrAssignment)
+       <|> (try arrRef)
+       <|> (try functionCall)
+       <|> (try input)
        <|> (fmap Variable identifier)
        <|> (parens expr)
 
@@ -110,7 +127,7 @@ functionDefinition = do
   name <- identifier
   (args, locals, arrays) <- parens defs
   body <- block
-  return $ FunctionDefinition typ name args locals arrays body
+  return $ FunctionDefinition typ name args locals arrays (BlockStatement body)
   where defs = do
           args <- commaSep (varDef typeDeclaration)
           semi
@@ -146,10 +163,22 @@ blockStatement = do
   stmts <- braces (endBy statement semi)
   return $ BlockStatement stmts
 
+outputStatement = do
+  reserved "output"
+  val <- expr
+  return $ OutputStatement val
+
+returnStatement = do
+  reserved "return"
+  val <- optionMaybe expr
+  return $ ReturnStatement val
+
 statement = expressionStatement
             <|> ifElseStatement
             <|> whileStatement
             <|> blockStatement
+            <|> outputStatement
+            <|> returnStatement
             <?> "statement"
 
 translationUnit = endBy functionDefinition semi

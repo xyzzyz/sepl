@@ -7,9 +7,9 @@ Maintainer:          adamm@mimuw.edu.pl
 Build-Type:          Simple
 Cabal-Version:       >=1.2
 
-Executable TestTypeChecker
-  Main-is:           TestTypeChecker.hs
-  Build-Depends:     base, containers, mtl,
+Executable RunTests
+  Main-is:           RunTests.hs
+  Build-Depends:     base, containers, array, mtl, EitherT,
                      parsec,
                      HUnit,
                      filepath, directory
