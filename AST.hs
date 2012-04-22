@@ -24,6 +24,7 @@ data Expression = IntLiteral Int
                 | Sub Expression Expression
                 | Mul Expression Expression
                 | Div Expression Expression
+                | Mod Expression Expression
                 | Equals Expression Expression
                 | LessThan Expression Expression
                 | GreaterThan Expression Expression

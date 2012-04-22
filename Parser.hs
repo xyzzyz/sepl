@@ -90,7 +90,8 @@ term = (fmap StringLiteral stringLiteral)
        <|> (parens expr)
 
 table = [[prefix "!" (Not)],
-         [binary "*" (Mul) AssocLeft, binary "/" (Div) AssocLeft ],
+         [binary "*" (Mul) AssocLeft, binary "/" (Div) AssocLeft,
+          binary "%" (Mod) AssocLeft],
          [binary "+" (Add) AssocLeft, binary "-" (Sub) AssocLeft],
          [binary "<=" (LessOrEqual) AssocLeft, binary ">=" (GreaterOrEqual) AssocLeft,
           binary "<" (LessThan) AssocLeft, binary ">" (GreaterThan) AssocLeft],

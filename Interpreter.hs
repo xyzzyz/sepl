@@ -140,6 +140,8 @@ evalExpr (Add e1 e2) = evalBinaryExpr ((+) :: Int -> Int -> Int) e1 e2
 evalExpr (Sub e1 e2) = evalBinaryExpr ((-) :: Int -> Int -> Int) e1 e2
 evalExpr (Mul e1 e2) = evalBinaryExpr ((*) :: Int -> Int -> Int) e1 e2
 evalExpr (Div e1 e2) = evalBinaryExpr (div :: Int -> Int -> Int) e1 e2
+evalExpr (Mod e1 e2) = evalBinaryExpr (rem :: Int -> Int -> Int) e1 e2
+
 evalExpr (Equals e1 e2) = evalBinaryExpr ((==) :: Int -> Int -> Bool) e1 e2
 evalExpr (LessThan e1 e2) = evalBinaryExpr ((<) :: Int -> Int -> Bool) e1 e2
 evalExpr (GreaterThan e1 e2) = evalBinaryExpr ((>) :: Int -> Int -> Bool) e1 e2

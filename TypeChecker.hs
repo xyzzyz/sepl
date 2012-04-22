@@ -118,6 +118,7 @@ typeCheckExpr (Add e1 e2) = typeCheckBinaryNumOp e1 e2
 typeCheckExpr (Sub e1 e2) = typeCheckBinaryNumOp e1 e2
 typeCheckExpr (Mul e1 e2) = typeCheckBinaryNumOp e1 e2
 typeCheckExpr (Div e1 e2) = typeCheckBinaryNumOp e1 e2
+typeCheckExpr (Mod e1 e2) = typeCheckBinaryNumOp e1 e2
 
 typeCheckExpr (Equals e1 e2) = do
   t1 <- typeCheckExpr e1
