@@ -12,7 +12,7 @@ Executable RunTests
   Build-Depends:     base, containers, array, mtl, EitherT,
                      parsec,
                      HUnit,
-                     filepath, directory
+                     filepath, directory, process
 
 Executable TestParser
   Main-is:           TestParser.hs

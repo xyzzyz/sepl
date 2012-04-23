@@ -1,0 +1,15 @@
+#include "io.h"
+
+void hello(;locals ; arrays [int] arr ;) {
+  arr = "Hello, World\n";
+  print_string(arr);
+  return;
+};
+
+void main(; locals ; arrays ;) {
+  hello(;arrays 100);
+  print_int(6667);
+  output '\n';
+  return;
+};
+

@@ -184,4 +184,6 @@ statement = expressionStatement
             <|> returnStatement
             <?> "statement"
 
-translationUnit = endBy functionDefinition semi
+translationUnit = do
+  whitespace
+  endBy functionDefinition semi

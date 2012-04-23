@@ -1,3 +1,6 @@
+#ifndef IO_H
+#define IO_H
+
 void print_int_helper(int a; locals int i, int j; arrays [int] out;) {
   if(a == 0) {
     out[0] = 0;
@@ -22,8 +25,7 @@ void print_int(int a; locals ; arrays ;) {
   return;
 };
 
-void hello(int a; locals int i; arrays [int] arr ;) {
-  arr = "Hello, World\n";
+void print_string([int] arr; locals int i; arrays;) {
   i = 0;
   while(!(arr[i] == 0)) {
     output arr[i];
@@ -32,10 +34,4 @@ void hello(int a; locals int i; arrays [int] arr ;) {
   return;
 };
 
-void main(; locals ; arrays ;) {
-  hello(0; arrays 100);
-  print_int(6667);
-  output '\n';
-  return;
-};
-
+#endif
