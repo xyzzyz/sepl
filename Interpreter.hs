@@ -148,28 +148,6 @@ evalExpr (GreaterThan e1 e2) = evalBinaryExpr ((>) :: Int -> Int -> Bool) e1 e2
 evalExpr (LessOrEqual e1 e2) = evalBinaryExpr ((<=) :: Int -> Int -> Bool) e1 e2
 evalExpr (GreaterOrEqual e1 e2) = evalBinaryExpr ((>=) :: Int -> Int -> Bool) e1 e2
 
-evalExpr (Call name givenArgs givenArrs) = do
-  fun <- getFun name
-  args' <- mapM evalExpr givenArgs
-  arrs' <- mapM evalExpr givenArrs
-  saveEnv $ do
-    updateEnv fun args' arrs'
-    v <- evalStmt (body fun)
-    case v of
-      Left ret -> return ret
-      Right () -> error "RUNTIME ERROR: expected return"
-  where updateEnv fun args' arrs' = do
-          zipWithM_ initVarVal (args fun) args'
-          zipWithM_ initArr (arrays fun) arrs'
-          mapM_ initVarDefault (locals fun)
-        initVarDefault (Int, name) = setVar name (defaultValue :: Int)
-        initVarDefault (Bool, name) = setVar name (defaultValue :: Bool)
-        initVarDefault (IntArray, name) = setVar name (defaultValue :: Array Int Int)
-        initVarVal (Int, name) (BFInt val) = setVar name val
-        initVarVal (Bool, name) (BFBool val) = setVar name val
-        initVarVal (IntArray, name) (BFIntArray val) = setVar name val
-        initVarVal p q = error $ "RUNTIME ERROR: wrong argument type: " ++ show p ++ " " ++ show q
-        initArr (IntArray, name) (BFInt n) = setVar name (listArray (0, n-1) (replicate n 0) :: Array Int Int)
 
 evalBinaryExpr f e1 e2 = do
   v1 <- evalExprValue e1
@@ -183,6 +161,34 @@ saveEnv act = do
   return val
 
 evalStmt :: Statement -> InterpreterState (Either BFVar ())
+evalStmt (Call assign name givenArgs givenArrs) = do
+  fun <- getFun name
+  args' <- mapM evalExpr givenArgs
+  arrs' <- mapM evalExpr givenArrs
+  saveEnv $ do
+    updateEnv fun args' arrs'
+    v <- evalStmt (body fun)
+    case v of
+      Left ret -> maybeAssign assign ret >> (return . return $ ())
+      Right () -> error "RUNTIME ERROR: expected return"
+  where updateEnv fun args' arrs' = do
+          zipWithM_ initVarVal (args fun) args'
+          zipWithM_ initArr (arrays fun) arrs'
+          mapM_ initVarDefault (locals fun)
+        initVarDefault (Int, name) = setVar name (defaultValue :: Int)
+        initVarDefault (Bool, name) = setVar name (defaultValue :: Bool)
+        initVarDefault (IntArray, name) = setVar name (defaultValue :: Array Int Int)
+        initVarVal (Int, name) (BFInt val) = setVar name val
+        initVarVal (Bool, name) (BFBool val) = setVar name val
+        initVarVal (IntArray, name) (BFIntArray val) = setVar name val
+        initVarVal p q = error $ "RUNTIME ERROR: wrong argument type: " ++ show p ++ " " ++ show q
+        initArr (IntArray, name) (BFInt n) = setVar name (listArray (0, n-1) (replicate n 0) :: Array Int Int)
+        maybeAssign Nothing _ = return ()
+        maybeAssign (Just name) (BFInt n) = setVar name n
+        maybeAssign (Just name) (BFBool b) = setVar name b
+        maybeAssign (Just name) (BFIntArray a) = setVar name a
+
+
 evalStmt (ExpressionStatement expr) = do
   evalExpr expr
   return . return $ ()
@@ -230,7 +236,7 @@ evalTranslationUnit defs = execStateT callMain emptyEnv
   where callMain :: InterpreterState ()
         callMain = do
           mapM_ addDef defs
-          evalExpr (Call "main" [] [])
+          evalStmt (Call Nothing "main" [] [])
           return ()
             where addDef :: FunctionDefinition -> InterpreterState ()
                   addDef def = do
