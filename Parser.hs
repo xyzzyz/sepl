@@ -14,7 +14,7 @@ import Text.ParserCombinators.Parsec.Expr
 import AST
 
 primitiveTypes = ["void", "int", "bool"]
-keywords = ["if", "while", "locals", "arrays", "input", "output", "return", "sizeof"]
+keywords = ["if", "while", "locals", "arrays", "input", "output", "return", "sizeof", "call"]
 
 cDef = javaStyle { reservedNames = keywords ++ primitiveTypes}
 
@@ -35,22 +35,6 @@ braces = P.braces cLexer
 brackets = P.brackets cLexer
 commaSep = P.commaSep cLexer
 semi = P.semi cLexer
-
-functionCall = do
-  name <- identifier
-  (args, arrays) <- parens argsAndMaybeArrays
-  return $ Call name args arrays
-  where argsAndArrays = do
-          args <- commaSep expr
-          semi
-          reserved "arrays"
-          arrays <- commaSep expr
-          return (args, arrays)
-        argsAndNoArrays = do
-          args <- commaSep expr
-          return (args, [])
-        argsAndMaybeArrays = try argsAndArrays
-                             <|> argsAndNoArrays
 
 varAssignment = do
   name <- identifier
@@ -86,7 +70,6 @@ term = (fmap StringLiteral stringLiteral)
        <|> (try varAssignment)
        <|> (try arrAssignment)
        <|> (try arrRef)
-       <|> (try functionCall)
        <|> (try input)
        <|> (fmap Variable identifier)
        <|> (parens expr)
@@ -146,6 +129,29 @@ functionDefinition = do
           name <- identifier
           return (typ, name)
 
+functionCallStatement = do
+  varAssign <- optionMaybe maybeAssign
+  reserved "call"
+  name <- identifier
+  (args, arrays) <- parens argsAndMaybeArrays
+  return $ Call varAssign name args arrays
+  where maybeAssign = do
+          name <- identifier
+          reservedOp "="
+          return name
+        argsAndArrays = do
+          args <- commaSep expr
+          semi
+          reserved "arrays"
+          arrays <- commaSep expr
+          return (args, arrays)
+        argsAndNoArrays = do
+          args <- commaSep expr
+          return (args, [])
+        argsAndMaybeArrays = try argsAndArrays
+                             <|> argsAndNoArrays
+
+
 expressionStatement = fmap ExpressionStatement expr
 
 ifElseStatement = do
@@ -176,7 +182,8 @@ returnStatement = do
   val <- optionMaybe expr
   return $ ReturnStatement val
 
-statement = expressionStatement
+statement = try functionCallStatement
+            <|> expressionStatement
             <|> ifElseStatement
             <|> whileStatement
             <|> blockStatement

@@ -30,19 +30,19 @@ data Expression = IntLiteral Int
                 | GreaterThan Expression Expression
                 | LessOrEqual Expression Expression
                 | GreaterOrEqual Expression Expression
-                | Call String [Expression] [Expression]
                 deriving (Show)
 
 type TypedExpression = (Type, Expression)
 
-data Statement = ExpressionStatement Expression
+data Statement = Call (Maybe String) String [Expression] [Expression]
+               | ExpressionStatement Expression
                | BlockStatement [Statement]
                | WhileStatement Expression Statement
                | IfElseStatement Expression Statement Statement
                | OutputStatement Expression
                | ReturnStatement (Maybe Expression)
                deriving (Show)
-
+                        
 data FunctionDefinition = FunctionDefinition {
   retType :: Type,
   name    :: String,

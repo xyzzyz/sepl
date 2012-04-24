@@ -2,8 +2,6 @@ module Main where
 
 import Text.ParserCombinators.Parsec
 
-import Control.Monad.Trans.Either
-
 import System.IO
 import System.Directory
 import System.FilePath

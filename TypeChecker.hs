@@ -141,8 +141,14 @@ typeCheckExpr (Not e) = do
   ensureType Bool t
   return t
 
-typeCheckExpr (Call name args arrays) = do
+typeCheckStmt (Call assign name args arrays) = do
   (ret, expectedTypes, expectedArrays) <- getFunType name
+  case assign of
+    Nothing -> return ()
+    Just n -> do 
+      t <- getType n
+      ensureType ret t
+    
   gotTypes <- mapM typeCheckExpr args
   gotArrays <- mapM typeCheckExpr arrays
   mapM_ (ensureType Int) gotArrays
@@ -154,7 +160,7 @@ typeCheckExpr (Call name args arrays) = do
     throwError $ WrongArgumentCount name expectedArrays (length gotArrays)
 
   mapM_ (uncurry ensureType) (zip expectedTypes gotTypes)
-  return ret
+  return ()
 
 typeCheckStmt (ExpressionStatement e) = do
   typeCheckExpr e

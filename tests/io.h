@@ -21,7 +21,7 @@ void print_int_helper(int a; locals int i, int j; arrays [int] out;) {
 };
 
 void print_int(int a; locals ; arrays ;) {
-  print_int_helper(a; arrays 20);
+  call print_int_helper(a; arrays 20);
   return;
 };
 
