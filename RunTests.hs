@@ -12,6 +12,7 @@ import Text.Printf
 
 import Test.HUnit
 
+import CPS
 import AST
 import Parser
 import TypeChecker
