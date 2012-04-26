@@ -11,6 +11,7 @@ data Type = Int | Bool | Void | IntArray
 data Expression = IntLiteral Int
                 | StringLiteral String
                 | Input
+                | Output Expression
                 | Sizeof String
                 | Variable String
                 | VarAssign String Expression
@@ -39,10 +40,9 @@ data Statement = Call (Maybe String) String [Expression] [Expression]
                | BlockStatement [Statement]
                | WhileStatement Expression Statement
                | IfElseStatement Expression Statement Statement
-               | OutputStatement Expression
                | ReturnStatement (Maybe Expression)
                deriving (Show)
-                        
+
 data FunctionDefinition = FunctionDefinition {
   retType :: Type,
   name    :: String,

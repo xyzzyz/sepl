@@ -63,6 +63,11 @@ input = do
   reserved "input"
   return Input
 
+output = do
+  reserved "output"
+  val <- expr
+  return $ Output val
+
 term = (fmap StringLiteral stringLiteral)
        <|> (fmap (IntLiteral . fromIntegral)  integer)
        <|> (fmap (IntLiteral . fromIntegral . ord) charLiteral)
@@ -71,6 +76,7 @@ term = (fmap StringLiteral stringLiteral)
        <|> (try arrAssignment)
        <|> (try arrRef)
        <|> (try input)
+       <|> (try output)
        <|> (fmap Variable identifier)
        <|> (parens expr)
 
@@ -154,28 +160,26 @@ functionCallStatement = do
 
 expressionStatement = fmap ExpressionStatement expr
 
+maybeEncloseWithBlock s@(BlockStatement _) = s
+maybeEncloseWithBlock s = BlockStatement [s]
+
 ifElseStatement = do
   reserved "if"
   cond <- parens expr
   thn <- statement
   reserved "else"
   els <- statement
-  return $ IfElseStatement cond thn els
+  return $ IfElseStatement cond (maybeEncloseWithBlock thn) (maybeEncloseWithBlock els)
 
 whileStatement = do
   reserved "while"
   cond <- parens expr
   body <- statement
-  return $ WhileStatement cond body
+  return $ WhileStatement cond (maybeEncloseWithBlock body)
 
 blockStatement = do
   stmts <- braces (endBy statement semi)
   return $ BlockStatement stmts
-
-outputStatement = do
-  reserved "output"
-  val <- expr
-  return $ OutputStatement val
 
 returnStatement = do
   reserved "return"
@@ -187,7 +191,6 @@ statement = try functionCallStatement
             <|> ifElseStatement
             <|> whileStatement
             <|> blockStatement
-            <|> outputStatement
             <|> returnStatement
             <?> "statement"
 

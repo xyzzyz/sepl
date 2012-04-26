@@ -5,6 +5,8 @@ module Interpreter where
 import Control.Monad.State
 import Control.Monad.Identity
 
+import Debug.Trace
+
 import Data.Char
 import Data.Array
 import qualified Data.Map as Map
@@ -91,11 +93,18 @@ evalExpr Input = lift $ do
   c <- getChar
   return $ BFInt (ord c)
 
+evalExpr (Output expr) = do
+  val <- evalExpr expr
+  case val of
+    BFInt n -> lift (putChar (chr n))
+    _ -> error "RUNTIME ERROR: expected integer"
+  return val
+
 evalExpr (Sizeof name) = do
   arr <- getVar name
   let (0, n) = bounds (arr :: Array Int Int)
   returnBF (n+1)
-  
+
 evalExpr (Variable var) = do
   t <- getType var
   case t of
@@ -165,12 +174,14 @@ evalStmt (Call assign name givenArgs givenArrs) = do
   fun <- getFun name
   args' <- mapM evalExpr givenArgs
   arrs' <- mapM evalExpr givenArrs
-  saveEnv $ do
+  ret <- saveEnv $ do
     updateEnv fun args' arrs'
-    v <- evalStmt (body fun)
-    case v of
-      Left ret -> maybeAssign assign ret >> (return . return $ ())
-      Right () -> error "RUNTIME ERROR: expected return"
+    evalStmt (body fun)
+  case ret of
+    Left val -> maybeAssign assign val
+    Right () -> error "RUNTIME ERROR: expected return"
+  return . return $ ()
+
   where updateEnv fun args' arrs' = do
           zipWithM_ initVarVal (args fun) args'
           zipWithM_ initArr (arrays fun) arrs'
@@ -217,13 +228,6 @@ evalStmt (IfElseStatement cond thn els) = do
   case val of
     BFBool True -> evalStmt thn
     BFBool False -> evalStmt els
-
-evalStmt (OutputStatement expr) = do
-  val <- evalExpr expr
-  case val of
-    BFInt n -> lift (putChar (chr n))
-    _ -> error "RUNTIME ERROR: expected integer"
-  return . return $ ()
 
 evalStmt (ReturnStatement Nothing) = do
   return $ Left BFVoid

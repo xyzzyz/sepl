@@ -82,6 +82,12 @@ typeCheckExpr (StringLiteral _ ) = return IntArray
 
 typeCheckExpr Input = return Int
 
+typeCheckExpr (Output expr) = do
+  c <- typeCheckExpr expr
+  ensureType Int c
+  return Int
+
+
 typeCheckExpr (Sizeof name) = do
   t <- getType name
   ensureType IntArray t
@@ -145,10 +151,10 @@ typeCheckStmt (Call assign name args arrays) = do
   (ret, expectedTypes, expectedArrays) <- getFunType name
   case assign of
     Nothing -> return ()
-    Just n -> do 
+    Just n -> do
       t <- getType n
       ensureType ret t
-    
+
   gotTypes <- mapM typeCheckExpr args
   gotArrays <- mapM typeCheckExpr arrays
   mapM_ (ensureType Int) gotArrays
@@ -178,11 +184,6 @@ typeCheckStmt (IfElseStatement cond thn els) = do
   ensureType Bool c
   typeCheckStmt thn
   typeCheckStmt els
-
-typeCheckStmt (OutputStatement expr) = do
-  c <- typeCheckExpr expr
-  ensureType Int c
-  return ()
 
 typeCheckStmt (ReturnStatement maybeExpr) = do
   t <- case maybeExpr of

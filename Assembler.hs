@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Assembler(BFPrimitive(..), BFSnippet(..), BFAsmInstruction(..), AssemblyEnv(..), 
+module Assembler(BFPrimitive(..), BFSnippet(..), BFAsmInstruction(..), AssemblyEnv(..),
                  runCodeGenerator,
                  prim, next, prev, dec, inc, loop,
                  fromBF, zero, clearNext, copyTimesTo,
@@ -50,11 +50,11 @@ data BFSnippet = BFSnippet [BFPrimitive]
 
 instance Show BFSnippet where
   show (BFSnippet s) = concatMap show s
-  
+
 instance Read BFSnippet where
   readsPrec _ xs = [(BFSnippet s, xs')]
     where [(s, xs')] = readList xs
-    
+
 data BFAsmInstruction = Primitive BFPrimitive
                       | DupX Int
                       | Swap
@@ -66,10 +66,10 @@ data BFAsmInstruction = Primitive BFPrimitive
                       | Sub
                       | Mul
                       deriving (Eq)
-                                                  
-data AssemblyEnv = AssemblyEnv { 
-  label :: String -> Int, 
-  current :: Int,  
+
+data AssemblyEnv = AssemblyEnv {
+  label :: String -> Int,
+  current :: Int,
   count :: Int}
 
 newtype CodeGenerator a = Generator {
@@ -97,8 +97,8 @@ runCodeGenerator s g = case runState (runWriterT (runGenerator g)) s of
   ((_, code), _) -> BFSnippet code
 
 
-withAssembling w = BFSnippet ss  
-  where (_, ss) = runWriter w 
+withAssembling w = BFSnippet ss
+  where (_, ss) = runWriter w
 
 prim x = tell [x]
 
@@ -142,14 +142,13 @@ copyTimesTo t n = loop $ do
   inc
   replicateM_ (t-1) $ next >> inc
   move (-(n+t-1))
-  
-    
+
 emit (Primitive x) = prim x
 
 emit (DupX n) = do -- fromBF ">[-]>[-]<<[->+>+<<]>>[-<<+>>]<"
   clearNext 2
-  dup n 
-  
+  dup n
+
 emit Swap = do -- fromBF ">[-]<[->+<]<[->+<]>>[-<<+>>]<"
   clearNext 1
   copyTimesTo 1 1
@@ -159,7 +158,7 @@ emit Swap = do -- fromBF ">[-]<[->+<]<[->+<]>>[-<<+>>]<"
   copyTimesTo 1 (-2)
   prev
 
-emit (Push i) = do 
+emit (Push i) = do
   next
   zero
   push i
@@ -169,7 +168,7 @@ emit (Target s) = do
   cur <- getCurrent
   count <- getCount
   next; zero
-  if i == cur 
+  if i == cur
     then push count
     else push $ (i - cur) `mod` count
 
@@ -190,15 +189,15 @@ emit Add = do
   copyTimesTo 1 (-1)
   prev
 
-emit Sub = do 
+emit Sub = do
   loop $ do
     dec
     prev
     dec
     next
   prev
-  
-emit Mul = do  
+
+emit Mul = do
   clearNext 3
   copyTimesTo 1 3
   prev
@@ -215,20 +214,19 @@ emit Mul = do
     dup 0
     next; next
   prev; prev; prev; prev
-  
 type BFAsmBlocks = Map.Map String [BFAsmInstruction]
 
 allocateBlocks :: BFAsmBlocks -> String -> Int
 allocateBlocks blocks = flip (Map.findWithDefault 0) $ labels
   where labels = Map.fromList $ [("exit", 1)] ++ zip (Map.keys . Map.delete "exit" $ blocks) [2..]
-        
+
 emitBlocks :: BFAsmBlocks -> [BFSnippet]
 emitBlocks blocks = map emitBlock sortedBlocks
-  where ids = allocateBlocks blocks 
+  where ids = allocateBlocks blocks
         sortedBlocks = sortBy (comparing $ ids . fst) (Map.toList blocks)
-        emitBlock (name, block) = runCodeGenerator (AssemblyEnv { label = ids, 
-                                                                  current = ids name, 
-                                                                  count = length sortedBlocks }) $ 
+        emitBlock (name, block) = runCodeGenerator (AssemblyEnv { label = ids,
+                                                                  current = ids name,
+                                                                  count = length sortedBlocks }) $
                                   comment name >> wrap block
         wrap block = do
           clearNext 1
@@ -236,9 +234,9 @@ emitBlocks blocks = map emitBlock sortedBlocks
           prev; prev
           dec
           loop $ do
-            next; next; 
+            next; next;
             dec
-          next          
+          next
           comment "actual block"
           loop $ do
             dec
@@ -248,10 +246,9 @@ emitBlocks blocks = map emitBlock sortedBlocks
             clearNext 3
             next; next; next
           prev; prev; prev
-          
+
 wrapSnippets :: [BFSnippet] -> BFSnippet
 wrapSnippets ss = BFSnippet $ [Next, Inc, Loop, Inc] ++ concatMap snippetToCode ss ++ [Dec, EndLoop]
   where snippetToCode (BFSnippet s) = s
-          
 
 main = putStrLn "Hello"
