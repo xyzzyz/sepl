@@ -16,6 +16,7 @@ import CPS
 import AST
 import Parser
 import TypeChecker
+import CodeGenerator
 import Interpreter
 
 testsDirectory :: String

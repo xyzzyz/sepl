@@ -7,6 +7,7 @@ int foo([int] a, bool b; locals int c; arrays;) {
   return 2;
 };
 
+
 void main(; locals; arrays;) {
   return;
 };

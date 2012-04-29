@@ -193,7 +193,7 @@ typeCheckStmt (ReturnStatement maybeExpr) = do
   ensureType (fromMaybe Void (curRetType e)) t
   return ()
 
-typeCheck (FunctionDefinition {retType = retType,
+typeCheckDef (FunctionDefinition {retType = retType,
                                name = name,
                                args = args,
                                arrays = arrays,
@@ -212,10 +212,13 @@ typeCheck (FunctionDefinition {retType = retType,
           Nothing -> checkMultipleDefs rest
           Just (typ', _) -> throwError $ MultipleVariableDefinitionError typ typ'
 
-typeChecker p = mapM_ typeCheck p
+typeChecker :: TranslationUnit -> TypeChecker ()
+typeChecker p = mapM_ typeCheckDef p
 
-runTypeChecker p s = case runState (runErrorT (runChecker p)) s of
-  (Left err, _) -> Left err
-  (Right r, bs) -> Right (r, bs)
+runTypeChecker :: TypeChecker () -> Env -> Either TypeError ()
+runTypeChecker p s = case evalState (runErrorT (runChecker p)) s of
+  Left err -> Left err
+  Right r -> Right r
 
+typeCheckTranslationUnit :: TranslationUnit -> Either TypeError ()
 typeCheckTranslationUnit p = runTypeChecker (typeChecker p) emptyEnv

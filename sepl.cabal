@@ -7,6 +7,12 @@ Maintainer:          adamm@mimuw.edu.pl
 Build-Type:          Simple
 Cabal-Version:       >=1.2
 
+Executable Main
+  Main-is:           Main.hs
+  Build-Depends:     base, containers, mtl, transformers,
+                     parsec
+
+
 Executable RunTests
   Main-is:           RunTests.hs
   Build-Depends:     base, containers, array, mtl, EitherT,
@@ -16,5 +22,15 @@ Executable RunTests
 
 Executable TestParser
   Main-is:           TestParser.hs
+  Build-Depends:     base, containers, mtl,
+                     parsec
+
+Executable TestCPS
+  Main-is:           TestCPS.hs
+  Build-Depends:     base, containers, mtl,
+                     parsec
+
+Executable TestCodeGenerator
+  Main-is:           TestCodeGenerator.hs
   Build-Depends:     base, containers, mtl,
                      parsec
