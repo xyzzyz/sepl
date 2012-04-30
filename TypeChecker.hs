@@ -80,6 +80,8 @@ typeCheckExpr (IntLiteral _) = return Int
 
 typeCheckExpr (StringLiteral _ ) = return IntArray
 
+typeCheckExpr (BoolLiteral _) = return Bool
+
 typeCheckExpr Input = return Int
 
 typeCheckExpr (Output expr) = do

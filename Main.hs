@@ -1,21 +1,24 @@
 module Main where
 
+import System.IO
+
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 
 import qualified Text.ParserCombinators.Parsec as Parsec
 
-import Parser
 import AST
+import Parser
 import TypeChecker
 import CPS
 import CodeGenerator
+import Assembler
 
 type CompilerProgram = MaybeT IO
 
 reportError :: String -> CompilerProgram a
 reportError err = do
-  lift (putStrLn err)
+  lift (hPutStrLn stderr err)
   fail ""
 
 parse :: String -> CompilerProgram TranslationUnit
@@ -31,14 +34,18 @@ typeCheck unit = case typeCheckTranslationUnit unit of
 compile :: String -> CompilerProgram ()
 compile input = do
   unit <- parse input
-  lift (putStrLn ("PARSED CORRECTLY:\n\n" ++ show unit ++ "\n\n\n"))
-  typeCheck unit
-  lift (putStrLn "TYPE CHECKING PASSED\n\n\n")
-  let cpsBlocks = cpsTransformTranslationUnit unit
-      funs = generateFunsCode cpsBlocks
-  lift (putStrLn ("CPS BLOCKS:\n\n" ++ show cpsBlocks ++ "\n\n\n"))
-  lift (putStrLn ("BFSNIPPETS:\n\n" ++ show funs ++ "\n\n\n"))
+  lift (hPutStrLn stderr ("PARSED CORRECTLY:\n\n" ++ show unit ++ "\n\n\n"))
 
+  typeCheck unit
+  lift (hPutStrLn stderr "TYPE CHECKING PASSED\n\n\n")
+
+  let cpsBlocks = cpsTransformTranslationUnit unit
+      snippets = generateFunsCode cpsBlocks
+  lift (hPutStrLn stderr ("CPS BLOCKS:\n\n" ++ show cpsBlocks ++ "\n\n\n"))
+  lift (hPutStrLn stderr ("BFSNIPPETS:\n\n" ++ show snippets ++ "\n\n\n"))
+
+  let primitiveBlocks = generateAssemblyFromSnippets snippets
+  lift (putStrLn (show primitiveBlocks))
   return ()
 
 main :: IO ()
@@ -46,5 +53,5 @@ main = do
   input <- getContents
   result <- runMaybeT (compile input)
   case result of
-    Just () -> putStrLn "Everything all right"
-    Nothing -> putStrLn "Errors, stopped"
+    Just () -> hPutStrLn stderr "Everything all right"
+    Nothing -> hPutStrLn stderr "Errors, stopped"

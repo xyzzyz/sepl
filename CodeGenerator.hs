@@ -60,9 +60,8 @@ generateJump (UseCall name args arrs retAddr) = do
       vars = variables f
   args' <- mapM generateExpr args
   arrs' <- mapM generateExpr arrs
-  return $ [NextCell] ++ concat args' ++ concat arrs'
-    ++ replicate (length args + length arrs) PrevCell
-    ++ [AllocateFrame strings (length arrs) (localsCount f) (length args) retAddr]
+  return $ [PutMarker] ++ concat args' ++ concat arrs'
+    ++ [AllocateFrame name strings (length arrs) (localsCount f) (length args) retAddr]
 
 generateExprs :: [Expression] -> GeneratorState [BFASMInstruction]
 generateExprs [] = return []
@@ -119,12 +118,12 @@ generateBlockCode :: CPSBlock -> GeneratorState BFSnippet
 
 generateBlockCode (CPSPopBlock n Nothing jump) = do
   jump' <- generateJump jump
-  return $ BFSnippet n [Pop] jump'
+  return $ BFSnippet n [PopArg, Pop] jump'
 
 generateBlockCode (CPSPopBlock n (Just var) jump) = do
   i <- getVarID var
   jump' <- generateJump jump
-  return $ BFSnippet n [SetVar i] jump'
+  return $ BFSnippet n [PopArg, SetVar i] jump'
 
 generateBlockCode (CPSBlock n exprs jump) = do
   es <- generateExprs exprs

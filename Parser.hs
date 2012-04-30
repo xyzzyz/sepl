@@ -14,7 +14,7 @@ import Text.ParserCombinators.Parsec.Expr
 import AST
 
 primitiveTypes = ["void", "int", "bool"]
-keywords = ["if", "while", "locals", "arrays", "input", "output", "return", "sizeof", "call"]
+keywords = ["if", "while", "locals", "arrays", "input", "output", "return", "sizeof", "call", "true", "false"]
 
 cDef = javaStyle { reservedNames = keywords ++ primitiveTypes}
 
@@ -68,9 +68,19 @@ output = do
   val <- expr
   return $ Output val
 
+true = do
+  reserved "true"
+  return $ BoolLiteral True
+
+false = do
+  reserved "false"
+  return $ BoolLiteral False
+
 term = (fmap StringLiteral stringLiteral)
        <|> (fmap (IntLiteral . fromIntegral)  integer)
        <|> (fmap (IntLiteral . fromIntegral . ord) charLiteral)
+       <|> (try true)
+       <|> (try false)
        <|> (try sizeof)
        <|> (try varAssignment)
        <|> (try arrAssignment)

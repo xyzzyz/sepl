@@ -31,17 +31,18 @@ instance Read BFPrimitive where
       where [(ps, xs'')] = readList xs'
 
 
-data BFASMInstruction = Pop | Push Int
+data BFASMInstruction = PopArg | Exit
+                      | Pop | Push Int
                       | ASMInput | ASMOutput
-                      | NextCell | PrevCell
+                      | NextPos | PrevPos
                       | GetVar Int | SetVar Int
                       | SetArr Int | GetArrRef Int
                       | ASMNot | ASMOr | ASMAnd
                       | ASMAdd | ASMSub | ASMMul | ASMDiv | ASMMod
                       | ASMEquals | ASMLessThan | ASMGreaterThan
                       | ASMLessOrEqual | ASMGreaterOrEqual
-                      | PutFunMarker
-                      | AllocateFrame [(String, String)] Int Int Int String
+                      | PutMarker
+                      | AllocateFrame String [(String, String)] Int Int Int String
                       | DestroyFrame
                       | SetTarget String
                       | SetTargetIfThenElse String String

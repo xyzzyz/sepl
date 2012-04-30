@@ -89,6 +89,7 @@ evalExprValue = extractBFM . evalExpr
 evalExpr :: Expression -> InterpreterState BFVar
 evalExpr (IntLiteral n) = returnBF n
 evalExpr (StringLiteral s) = returnBF $ listArray (0, length s) (map ord s ++ [0])
+evalExpr (BoolLiteral b) = returnBF b
 evalExpr Input = lift $ do
   c <- getChar
   return $ BFInt (ord c)

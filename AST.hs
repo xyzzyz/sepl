@@ -10,6 +10,7 @@ data Type = Int | Bool | Void | IntArray
 
 data Expression = IntLiteral Int
                 | StringLiteral String
+                | BoolLiteral Bool
                 | Input
                 | Output Expression
                 | Sizeof String
