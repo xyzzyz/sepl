@@ -215,6 +215,24 @@ assembleInstruction (GetVar i) = do
   copyTimesTo 1 1
   next
 
+assembleInstruction (SetVar i) = do
+  comment $ "setvar" ++ show i
+  dup
+  prev
+  copyTimesTo 1 (-8)
+  move (-6)
+  dec -- put marker
+  prevCell
+  carryBackToMarker
+  comment "carback"
+  move 6
+  carryThrough i
+  next; clear; prev
+  copyTimesTo 1 1
+  next; next
+  goToMarker nextCell
+  inc
+  move 7
 
 assembleInstruction (SetTarget name) = do
   l <- computeLabel name
@@ -321,7 +339,12 @@ assembleInstruction DestroyFrame = do
   comment "retq"
   inc
 
-assembleInstruction PopArg = comment "poparg"
+assembleInstruction PopArg = do
+  comment "poparg"
+  clear
+  move (-4)
+  copyTimesTo 1 4
+  move 4
 
 assembleInstruction Exit = do
   newCell

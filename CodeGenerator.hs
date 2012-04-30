@@ -123,7 +123,7 @@ generateBlockCode (CPSPopBlock n Nothing jump) = do
 generateBlockCode (CPSPopBlock n (Just var) jump) = do
   i <- getVarID var
   jump' <- generateJump jump
-  return $ BFSnippet n [PopArg, SetVar i] jump'
+  return $ BFSnippet n [PopArg, SetVar i, Pop] jump'
 
 generateBlockCode (CPSBlock n exprs jump) = do
   es <- generateExprs exprs
