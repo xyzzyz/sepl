@@ -145,6 +145,35 @@ bfNot = do
     dec; next; inc; prev
   next
 
+bfLessOrEqual = do
+  inc; move (-4); inc
+  loop $ do
+    dec; move 2;
+    copyTimesTo 2 (-2)
+    prev; prev
+    copyTimesTo 1 2
+    next
+    loop $ do
+      clear
+      move 3
+      dec
+      prev
+      copyTimesTo 2 (-3)
+      prev; prev; prev
+      copyTimesTo 1 3
+      next
+      loop $ do
+        clear
+        prev; inc
+        next
+        next; dec; next; dec
+        next; inc;
+        move (-3)
+    prev
+  clearMem 4
+  next
+
+
 goToMarker direction = do
   inc
   loop $ do
@@ -286,6 +315,16 @@ assembleInstruction ASMSub = do
 
 assembleInstruction ASMMul = bfMul
 
+assembleInstruction ASMLessOrEqual = do
+  move (-12) --clear helper cells
+  clearMem 4
+  next
+  copyTimesTo 1 (-2) -- copy to target position
+  nextCell
+  copyTimesTo 1 (-9) -- copy to target position
+  prevCell
+  bfLessOrEqual
+
 assembleInstruction PutMarker = putMarker
 
 assembleInstruction (AllocateFrame name strings arrs locals args ret) = do
@@ -297,7 +336,6 @@ assembleInstruction (AllocateFrame name strings arrs locals args ret) = do
   allocateStrings strings
   allocateArrays arrs
   allocateArgs args
-  replicateM_ args clearMarker
   l <- getLabel ret
   comment $ "ret" ++ show l
   pushReturnAddress l
@@ -374,8 +412,11 @@ allocateStrings strings = do
   goToMarker prevCell
   move 7
 
-allocateArrays arrs = replicateM_ arrs putMarker
-allocateArgs args = allocateArg 0
+allocateArrays arrs = do
+  replicateM_ arrs putMarker
+allocateArgs args = do
+  allocateArg 0
+  replicateM_ args clearMarker
   where allocateArg n | n == args = return ()
                       | otherwise = do
           comment "allocarg"
