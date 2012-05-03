@@ -325,6 +325,57 @@ assembleInstruction ASMLessOrEqual = do
   prevCell
   bfLessOrEqual
 
+assembleInstruction ASMGreaterOrEqual = do
+  move (-12) --clear helper cells
+  clearMem 4
+  next
+  copyTimesTo 1 (-1) -- copy to target position
+  nextCell
+  copyTimesTo 1 (-10) -- copy to target position
+  prevCell
+  bfLessOrEqual
+
+assembleInstruction ASMGreaterThan = do
+  move (-12) --clear helper cells
+  clearMem 4
+  next
+  copyTimesTo 1 (-2) -- copy to target position
+  nextCell
+  copyTimesTo 1 (-9) -- copy to target position
+  prevCell
+  bfLessOrEqual
+  bfNot
+
+assembleInstruction ASMLessThan = do
+  move (-12) --clear helper cells
+  clearMem 4
+  next
+  copyTimesTo 1 (-1) -- copy to target position
+  nextCell
+  copyTimesTo 1 (-10) -- copy to target position
+  prevCell
+  bfLessOrEqual
+  bfNot
+
+assembleInstruction ASMEquals = do
+  move (-4)
+  clearMem 4
+  next
+  dup
+  prevCell
+  copyTimesTo 2 (-2)
+  prev; prev;
+  copyTimesTo 1 8
+  move 10
+  copyTimesTo 1 (-10)
+  comment "eq"
+  prevCell
+  bfLessOrEqual
+  nextCell
+  bfLessOrEqual
+  bfMul
+
+
 assembleInstruction PutMarker = putMarker
 
 assembleInstruction (AllocateFrame name strings arrs locals args ret) = do
