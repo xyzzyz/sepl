@@ -77,7 +77,8 @@ output = prim Print
 
 
 comment :: String -> Assembler ()
-comment =  prim . Comment
+comment _ = return ()
+--comment =  prim . Comment
 
 cellWidth = 8
 
@@ -135,6 +136,30 @@ bfMul = do
     copyTimesTo 1 (-6)
     next; next
   pop
+
+bfDivMul = do
+  move (-13)
+  clearMem 5
+  move 9
+  copyTimesTo 1 (-9)
+  prevCell
+  loop $ do
+    dec
+    prev
+    dec
+    prev
+    inc
+    next
+    loop $ do
+      prev; prev
+    prev
+    loop $ do
+      move (-3)
+      inc
+      move 3
+      copyTimesTo 1 1
+      move (-2)
+    move 4
 
 bfNot = do
   prev; inc; next
@@ -314,6 +339,23 @@ assembleInstruction ASMSub = do
   pop
 
 assembleInstruction ASMMul = bfMul
+
+assembleInstruction ASMDiv = do
+  bfDivMul
+  prev; clear; prev; clear;
+  move (-3)
+  copyTimesTo 1 5
+  move 5
+
+assembleInstruction ASMMod = do
+  bfDivMul
+  comment "aftermod"
+  move (-5); clear
+  move 3
+  copyTimesTo 1 2
+  next; clear
+  next;
+
 
 assembleInstruction ASMLessOrEqual = do
   move (-12) --clear helper cells
