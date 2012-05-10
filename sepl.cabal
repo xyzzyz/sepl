@@ -15,7 +15,7 @@ Executable Main
 
 Executable RunTests
   Main-is:           RunTests.hs
-  Build-Depends:     base, containers, array, mtl, EitherT,
+  Build-Depends:     base, containers, array, mtl,
                      parsec,
                      HUnit,
                      filepath, directory, process
