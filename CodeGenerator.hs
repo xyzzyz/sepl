@@ -60,7 +60,11 @@ generateJump (UseCall name args arrs retAddr) = do
       vars = variables f
   args' <- mapM generateExpr args
   arrs' <- mapM generateExpr arrs
-  return $ [PutMarker] ++ concat arrs' ++ concat args'
+  let n = length args' + length arrs' 
+  return $ [NextPos] ++ concat arrs' ++ concat args' 
+    ++ replicate (n+1) PrevPos
+    ++ [PutMarker]
+    ++ replicate n NextPos
     ++ [AllocateFrame name strings (length arrs) (localsCount f) (length args) retAddr]
 
 generateExprs :: [Expression] -> GeneratorState [BFASMInstruction]
