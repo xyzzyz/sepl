@@ -1,3 +1,16 @@
 * Sepl
 ** Author
    Adam Michalik <adamm@mimuw.edu.pl>
+** Uruchamianie
+   kompilacja:
+
+   #+BEGIN_SRC bash
+   cabal configure
+   cabal build
+   #+END_SRC
+
+   uruchamianie
+   #+BEGIN_SRC bash
+   dist/build/Main/Main < input.bf #interpreter
+   dist/build/Main/Main -c < input.bf #kompilator
+   #+END_SRC
