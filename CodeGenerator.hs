@@ -1,105 +1,106 @@
-module CodeGenerator where
+{-# LANGUAGE TemplateHaskell #-}
+module  CodeGenerator where
 
-import Control.Monad.State
-import Control.Monad.Writer
+import Control.Monad.State hiding (mapM)
+import Control.Monad.Writer hiding (mapM)
+import Control.Lens hiding ((<|), (|>))
+import Control.Applicative((<$>), (<*>))
 
 import Debug.Trace
 
 import qualified Data.Map as Map
+import qualified Data.Sequence as S
+import Data.Sequence (Seq, empty, (<|), (|>), (><))
+import Data.Foldable(fold)
+import Data.Traversable
+
+import Prelude hiding (mapM)
 
 import AST
 import ASM
 import CPS
 
 data GeneratorEnv = GeneratorEnv {
-  functions :: Map.Map String CPSFun,
-  currentFun :: String,
-  assembledBlocks :: [BFSnippet]
+  _functions :: Map.Map String CPSFun,
+  _currentFun :: String,
+  _assembledBlocks :: Seq BFSnippet
   } deriving (Show)
 
+$( makeLenses ''GeneratorEnv )
 
-emptyGeneratorEnv = GeneratorEnv Map.empty "" []
+emptyGeneratorEnv = GeneratorEnv Map.empty "" empty
 
 type GeneratorState = State GeneratorEnv
 
 getFun :: String -> GeneratorState CPSFun
 getFun name = do
-  e <- get
-  return $ functions e Map.! name
+  fs <- use functions
+  return $ fs Map.! name
 
 getCurrentFun :: GeneratorState CPSFun
 getCurrentFun = do
-  e <- get
-  return $ (functions e Map.! currentFun e)
+  fs <- use functions
+  current <- use currentFun
+  return $ fs  Map.! current
 
 getVarID :: String -> GeneratorState Int
 getVarID var = do
   f <- getCurrentFun
-  let (CPSFun { variables = vars}) = f
-  return $ vars Map.! var
+  return $ (f ^. variables) Map.! var
 
 
-generateJump :: CPSJump -> GeneratorState [BFASMInstruction]
+generateJump :: CPSJump -> GeneratorState (Seq BFASMInstruction)
 generateJump (UseContinuation name) =
-  return [SetTarget name]
+  return $ SetTarget name <| empty
 
 generateJump (UseStackContinuation Nothing) =
-  return [Push 0, DestroyFrame]
+  return $ Push 0 <| DestroyFrame <| empty
 
 generateJump (UseStackContinuation (Just e)) = do
   e' <- generateExpr e
-  return $ e' ++ [DestroyFrame]
+  return $ e' |> DestroyFrame
 
 generateJump (UseIfElse expr thn els) = do
   e' <- generateExpr expr
-  return $ e' ++ [SetTargetIfThenElse thn els]
+  return $ e' |> SetTargetIfThenElse thn els
 
 generateJump (UseCall name args arrs retAddr) = do
   f <- getFun name
-  let strings = Map.toList (cpsStringLiterals f)
-      vars = variables f
+  let strings = Map.toList (f ^. cpsStringLiterals)
+      vars = f ^. variables
   args' <- mapM generateExpr args
   arrs' <- mapM generateExpr arrs
   let n = length args' + length arrs' 
-  return $ [NextPos] ++ concat arrs' ++ concat args' 
-    ++ replicate (n+1) PrevPos
-    ++ [PutMarker]
-    ++ replicate n NextPos
-    ++ [AllocateFrame name strings (length arrs) (localsCount f) (length args) retAddr]
+  return $ (NextPos <| mconcat arrs' >< mconcat args')
+    >< (S.replicate (n+1) PrevPos
+        |> PutMarker)
+    >< (S.replicate n NextPos
+        |> AllocateFrame name strings (length arrs) (f ^. localsCount) (length args) retAddr)
 
-generateExprs :: [Expression] -> GeneratorState [BFASMInstruction]
-generateExprs [] = return []
-generateExprs (e:es) = do
-  e' <- generateExpr e
-  es' <- generateExprs es
-  return $ e' ++ [Pop] ++ es'
+generateExprs :: Seq Expression -> GeneratorState (Seq BFASMInstruction)
+generateExprs es = fold <$> f `traverse` es
+  where f :: Expression -> GeneratorState (Seq BFASMInstruction)
+        f = fmap (|> Pop) . generateExpr
 
--- everything is O(n^2), move to Data.Seq
-generateExpr :: Expression -> GeneratorState [BFASMInstruction]
-generateExpr (IntLiteral n) = return [Push n]
-generateExpr Input = return [ASMInput]
-generateExpr (Output expr) = do
-  e' <- generateExpr expr
-  return $ e' ++ [ASMOutput]
-generateExpr (Variable name) = do
-  i <- getVarID name
-  return [GetVar i]
-generateExpr (VarAssign name expr) = do
-  e' <- generateExpr expr
-  i <- getVarID name
-  return $ e' ++ [SetVar i]
+generateExpr :: Expression -> GeneratorState (Seq BFASMInstruction)
+generateExpr (IntLiteral n) = return $ Push n <| empty
+generateExpr Input = return $ ASMInput <| empty
+generateExpr (Output expr) = (|>) <$> generateExpr expr <*> return ASMOutput
+generateExpr (Variable name) = (empty |>) <$> GetVar <$> getVarID name
+generateExpr (VarAssign name expr) = (|>) <$> generateExpr expr
+                                          <*> (SetVar <$> getVarID name)
 generateExpr (ArrAssign name ix val) = do
   val' <- generateExpr val
   ix' <- generateExpr ix
   i <- getVarID name
-  return $ ix' ++ val' ++ [SetArr i]
+  return $ ix' >< (val' |> SetArr i)
 generateExpr (ArrRef name ix) = do
   ix' <- generateExpr ix
   i <- getVarID name
-  return $ ix' ++ [GetArrRef i]
+  return $ ix' |> GetArrRef i
 generateExpr (Not expr) = do
   e <- generateExpr expr
-  return $ e ++ [ASMNot]
+  return $ e |> ASMNot
 generateExpr (Or e1 e2) = generateBinaryExpr ASMOr e1 e2
 generateExpr (And e1 e2) = generateBinaryExpr ASMAnd e1 e2
 generateExpr (Add e1 e2) = generateBinaryExpr ASMAdd e1 e2
@@ -116,43 +117,36 @@ generateExpr (GreaterOrEqual e1 e2) = generateBinaryExpr ASMGreaterOrEqual e1 e2
 generateBinaryExpr op e1 e2 = do
   e1' <- generateExpr e1
   e2' <- generateExpr e2
-  return $ e1' ++ e2' ++ [op]
+  return $ e1'>< (e2' |> op)
 
 generateBlockCode :: CPSBlock -> GeneratorState BFSnippet
-
 generateBlockCode (CPSPopBlock n Nothing jump) = do
   jump' <- generateJump jump
-  return $ BFSnippet n [PopArg, Pop] jump'
+  return $ BFSnippet n (PopArg <| Pop <| empty) jump'
 
 generateBlockCode (CPSPopBlock n (Just var) jump) = do
   i <- getVarID var
   jump' <- generateJump jump
-  return $ BFSnippet n [PopArg, SetVar i, Pop] jump'
+  return $ BFSnippet n (PopArg <| SetVar i <| Pop <| empty) jump'
 
-generateBlockCode (CPSBlock n exprs jump) = do
+generateBlockCode (CPSExprBlock n exprs jump) = do
   es <- generateExprs exprs
   jump' <- generateJump jump
   return $ BFSnippet n es jump'
 
-
 generateFunCode :: CPSFun -> GeneratorState ()
-generateFunCode (CPSFun { cpsFunName = n,
-                          cpsStringLiterals = strings,
-                          variables = vars,
-                          bodyBlocks = cpsBlocks }) = do
-  env <- get
-  put $ env { currentFun = n }
+generateFunCode cpsFun = do
+  currentFun .= (cpsFun^.cpsFunName)
+  blocks <- mapM generateBlockCode (cpsFun^.bodyBlocks)
 
-  blocks <- mapM generateBlockCode cpsBlocks
-  env' <- get
-  put $ env' { assembledBlocks = blocks ++ assembledBlocks env' }
+  assembledBlocks %= (blocks ><)
   return ()
 
-generateFunsCode :: [CPSFun] -> [BFSnippet]
-generateFunsCode funs = assembledBlocks state
+generateFunsCode :: [CPSFun] -> Seq BFSnippet
+generateFunsCode funs = state^.assembledBlocks
   where state = execState (mapM_ generateFunCode funs) env
-        env = emptyGeneratorEnv {functions = funs'}
+        env = emptyGeneratorEnv { _functions = funs'}
         funs' = Map.fromList (map makeFunPair funs)
         makeFunPair :: CPSFun -> (String, CPSFun)
-        makeFunPair f = (cpsFunName f, f)
+        makeFunPair f = (f^.cpsFunName , f)
 

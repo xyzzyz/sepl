@@ -6,6 +6,8 @@ import System.Environment
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 
+import Text.Show.Pretty
+
 import qualified Text.ParserCombinators.Parsec as Parsec
 
 import AST
@@ -20,8 +22,11 @@ type CompilerProgram = MaybeT IO
 
 reportError :: String -> CompilerProgram a
 reportError err = do
-  lift (hPutStrLn stderr err)
+  liftIO (hPutStrLn stderr err)
   fail ""
+
+printDebug :: String -> CompilerProgram ()
+printDebug = liftIO . hPutStrLn stderr
 
 parse :: String -> CompilerProgram TranslationUnit
 parse input = case Parsec.parse translationUnit "<stdin>" input of
@@ -36,11 +41,11 @@ typeCheck unit = case typeCheckTranslationUnit unit of
 parseAndTypecheck :: String -> CompilerProgram TranslationUnit
 parseAndTypecheck input = do
   unit <- parse input
-  lift (hPutStrLn stderr ("PARSED CORRECTLY:\n\n" ++ show unit ++ "\n\n\n"))
+  printDebug $ "PARSED CORRECTLY:\n\n" ++ ppShow unit ++ "\n\n\n"
 
   typeCheck unit
-  lift (hPutStrLn stderr "TYPE CHECKING PASSED\n\n\n")
-  
+  printDebug $ "TYPE CHECKING PASSED\n\n\n"
+
   return unit
 
 execute :: (TranslationUnit -> CompilerProgram ()) -> String -> CompilerProgram ()
@@ -49,20 +54,20 @@ execute uh input = do
   uh unit
   return ()
 
-compilator :: TranslationUnit -> CompilerProgram ()
-compilator unit = do
+compiler :: TranslationUnit -> CompilerProgram ()
+compiler unit = do
   let cpsBlocks = cpsTransformTranslationUnit unit
       snippets = generateFunsCode cpsBlocks
-  lift (hPutStrLn stderr ("CPS BLOCKS:\n\n" ++ show cpsBlocks ++ "\n\n\n"))
-  lift (hPutStrLn stderr ("BFSNIPPETS:\n\n" ++ show snippets ++ "\n\n\n"))
+  printDebug $ "CPS BLOCKS:\n\n" ++ ppShow cpsBlocks ++ "\n\n\n"
+  printDebug $ "BFSNIPPETS:\n\n" ++ ppShow snippets ++ "\n\n\n"
 
   let primitiveBlocks = generateAssemblyFromSnippets snippets
-  lift (putStrLn (show primitiveBlocks))
+  printDebug $ ppShow primitiveBlocks
   return ()
 
 interpreter :: TranslationUnit -> CompilerProgram ()
 interpreter unit = do
-  lift (evalTranslationUnit unit)
+  liftIO (evalTranslationUnit unit)
   return ()
 
 main :: IO ()
@@ -70,6 +75,6 @@ main = do
   args <- getArgs
   input <- getContents
   if "-c" `elem` args
-    then runMaybeT (execute compilator input)
+    then runMaybeT (execute compiler input)
     else runMaybeT (execute interpreter input)
   return ()

@@ -1,10 +1,17 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module CPS where
 
-import Control.Monad.State
-import Control.Monad.Identity
+import Data.Sequence (Seq, empty, singleton)
+import Data.Traversable (traverse)
+import Control.Lens
+
+import Control.Applicative hiding (empty)
+
+import Control.Monad.RWS
 
 import qualified Data.Map as Map
-
+import Prelude hiding (mapM)
 import AST
 
 data CPSJump = UseStackContinuation (Maybe Expression)
@@ -14,59 +21,56 @@ data CPSJump = UseStackContinuation (Maybe Expression)
              deriving (Show)
 
 
-data CPSBlock = CPSBlock String [Expression] CPSJump
+data CPSBlock = CPSExprBlock String (Seq Expression) CPSJump
               | CPSPopBlock String (Maybe String) CPSJump
               deriving (Show)
 
 data CPSFun = CPSFun {
-  cpsFunName :: String,
-  cpsStringLiterals :: Map.Map String String,
-  variables :: Map.Map String Int,
-  localsCount :: Int,
-  bodyBlocks :: [CPSBlock]
+  _cpsFunName :: String,
+  _cpsStringLiterals :: Map.Map String String,
+  _variables :: Map.Map String Int,
+  _localsCount :: Int,
+  _bodyBlocks :: Seq CPSBlock
   } deriving (Show)
 
-data CPSEnv = CPSEnv {
-  nextID :: Int,
-  funName :: String,
-  stringLiterals :: Map.Map String String
+$( makeLenses ''CPSFun )
+
+
+data CPSState = CPSState {
+  _nextID :: Int,
+  _stringLiterals :: Map.Map String String
   } deriving (Show)
 
-makeCPSEnv :: String -> CPSEnv
-makeCPSEnv name = CPSEnv 0 name Map.empty
+$( makeLenses ''CPSState )
 
-type CPSTransformerState = State CPSEnv
+emptyCPSState :: CPSState
+emptyCPSState = CPSState 0 Map.empty
 
-getFunName :: CPSTransformerState String
-getFunName = do
-  e <- get
-  return $ funName e
+type CPSTransformer = RWS String (Seq CPSBlock) CPSState
 
-getNextID :: CPSTransformerState Int
-getNextID = do
-  e <- get
-  let id = nextID e
-  put $ e { nextID = id + 1 }
-  return id
+getFunName :: CPSTransformer String
+getFunName = ask
 
-getNextContID :: String -> CPSTransformerState String
+getNextID :: CPSTransformer Int
+getNextID = nextID <+= 1
+
+getNextContID :: String -> CPSTransformer String
 getNextContID str = do
   id <- getNextID
   n <- getFunName
   return $ "$" ++ n ++ "$" ++ str ++ show id
 
-getNextStringID :: CPSTransformerState String
+getNextStringID :: CPSTransformer String
 getNextStringID = do
   id <- getNextID
   n <- getFunName
   return $ "$" ++ n ++ "$s"++ show id
 
 
-transformExpr :: Expression -> CPSTransformerState Expression
+transformExpr :: Expression -> CPSTransformer Expression
 transformExpr (StringLiteral s) = do
   n <- getNextStringID
-  e <- get
-  put $ e { stringLiterals = Map.insert n s (stringLiterals e) }
+  stringLiterals . at n .= Just s
   return $ Variable n
 
 transformExpr (VarAssign var expr) = do
@@ -77,31 +81,33 @@ transformExpr (BoolLiteral True) = return $ IntLiteral 1
 transformExpr (BoolLiteral False) = return $ IntLiteral 0
 transformExpr e = return e
 
-makeCPSBlock name exprs jump = CPSBlock name (reverse exprs) jump
+pushBlock :: CPSBlock -> CPSTransformer ()
+pushBlock = tell . singleton
 
-cpsTransformStmts' [] cur curName jump = return [makeCPSBlock curName cur jump]
+cpsTransformStmts' :: [Statement] -> Seq Expression -> String -> CPSJump -> CPSTransformer ()
+cpsTransformStmts' [] cur curName jump = do
+  pushBlock $ CPSExprBlock curName cur jump
 
 cpsTransformStmts' (BlockStatement bs : ss) cur curName jump = do
   n1 <- getNextContID "block"
   n2 <- getNextContID "after_block"
-  block <- cpsTransformStmts' bs [] n1 (UseContinuation n2)
-  rest <- cpsTransformStmts' ss [] n2 jump
-  return $ makeCPSBlock curName cur (UseContinuation n1)
-    : (block ++ rest)
+  cpsTransformStmts' bs empty n1 (UseContinuation n2)
+  cpsTransformStmts' ss empty n2 jump
+  pushBlock $ CPSExprBlock curName cur (UseContinuation n1)
 
 cpsTransformStmts' (ExpressionStatement e : ss) cur curName jump = do
   e' <- transformExpr e
-  cpsTransformStmts' ss (e' : cur) curName jump
+  cpsTransformStmts' ss (cur |> e) curName jump
 
 cpsTransformStmts' (WhileStatement test (BlockStatement body) : ss) cur curName jump = do
   test' <- transformExpr test
   wn <- getNextContID "while_test"
   bn <- getNextContID "while_body"
   rn <- getNextContID "after_while"
-  body' <- cpsTransformStmts' body [] bn (UseContinuation wn)
-  rest <- cpsTransformStmts' ss [] rn jump
-  let whileBlock = makeCPSBlock wn [] (UseIfElse test' bn rn)
-  return $ makeCPSBlock curName cur (UseContinuation wn) : whileBlock : (body' ++ rest)
+  cpsTransformStmts' body empty bn (UseContinuation wn)
+  cpsTransformStmts' ss empty rn jump
+  pushBlock $ CPSExprBlock wn empty (UseIfElse test' bn rn)
+  pushBlock $ CPSExprBlock curName cur (UseContinuation wn)
 
 cpsTransformStmts' (IfElseStatement test (BlockStatement thn) (BlockStatement els)
                     : ss) cur curName jump = do
@@ -109,24 +115,24 @@ cpsTransformStmts' (IfElseStatement test (BlockStatement thn) (BlockStatement el
   thnn <- getNextContID "then"
   elsn <- getNextContID "else"
   rn <- getNextContID "after_if"
-  thn' <- cpsTransformStmts' thn [] thnn (UseContinuation rn)
-  els' <- cpsTransformStmts' els [] elsn (UseContinuation rn)
-  rest <- cpsTransformStmts' ss [] rn jump
-  return $ makeCPSBlock curName cur (UseIfElse test' thnn elsn)
-    : (thn' ++ els' ++ rest)
+  cpsTransformStmts' thn empty thnn (UseContinuation rn)
+  cpsTransformStmts' els empty elsn (UseContinuation rn)
+  cpsTransformStmts' ss empty rn jump
+  pushBlock $ CPSExprBlock curName cur (UseIfElse test' thnn elsn)
+
 
 cpsTransformStmts' (ReturnStatement ret : ss) cur curName jump = do
-  return $ [makeCPSBlock curName cur (UseStackContinuation ret)]
+  ret' <- transformExpr `traverse` ret
+  pushBlock $ CPSExprBlock curName cur (UseStackContinuation ret')
 
 cpsTransformStmts' (Call assign name args arrs : ss) cur curName jump = do
   nn <- getNextContID "pop"
   rn <- getNextContID "after_call"
-  rest <- cpsTransformStmts' ss [] rn jump
+  cpsTransformStmts' ss empty rn jump
   args' <- mapM transformExpr args
   arrs' <- mapM transformExpr arrs
-  return $ makeCPSBlock curName cur (UseCall name args' arrs' nn)
-    : CPSPopBlock nn assign (UseContinuation rn)
-    : rest
+  pushBlock $ CPSExprBlock curName cur (UseCall name args' arrs' nn)
+  pushBlock $ CPSPopBlock nn assign (UseContinuation rn)
 
 cpsTransformDef :: FunctionDefinition -> CPSFun
 cpsTransformDef (FunctionDefinition { name = name,
@@ -134,11 +140,11 @@ cpsTransformDef (FunctionDefinition { name = name,
                                       locals = locals,
                                       arrays = arrays,
                                       body = (BlockStatement body) }) =
-  CPSFun name strings vars (length locals) blocks
-    where (blocks, endState) = runState transform (makeCPSEnv name)
-          transform = cpsTransformStmts' body [] name (UseStackContinuation Nothing)
-          strings = stringLiterals endState
-          vars = Map.fromList (zip (Map.keys strings ++ map snd (arrays ++ args ++ locals)) [1..])
+  CPSFun name strings vars (Prelude.length locals) blocks
+    where (endState, blocks) = execRWS transform name emptyCPSState
+          transform = cpsTransformStmts' body empty name (UseStackContinuation Nothing)
+          strings =  endState ^. stringLiterals
+          vars = Map.fromList (Prelude.zip (Map.keys strings ++ map snd (arrays ++ args ++ locals)) [1..])
 
 cpsTransformTranslationUnit :: TranslationUnit -> [CPSFun]
-cpsTransformTranslationUnit = map cpsTransformDef
+cpsTransformTranslationUnit unit = map cpsTransformDef unit

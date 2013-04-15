@@ -1,5 +1,7 @@
 module ASM where
 
+import Data.Sequence
+
 data BFPrimitive = Next | Prev | Inc | Dec | Read | Print | Loop | EndLoop | Comment String
                  deriving (Eq)
 
@@ -48,5 +50,5 @@ data BFASMInstruction = PopArg | Exit
                       | SetTargetIfThenElse String String
                       deriving (Eq, Show)
 
-data BFSnippet = BFSnippet String [BFASMInstruction] [BFASMInstruction]
+data BFSnippet = BFSnippet String (Seq BFASMInstruction) (Seq BFASMInstruction)
                  deriving (Eq, Show)

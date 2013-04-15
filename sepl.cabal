@@ -10,7 +10,7 @@ Cabal-Version:       >=1.2
 Executable Main
   Main-is:           Main.hs
   Build-Depends:     base, containers, mtl, transformers,
-                     parsec
+                     parsec, pretty-show, lens
 
 
 Executable RunTests

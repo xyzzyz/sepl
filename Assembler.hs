@@ -1,12 +1,21 @@
 module Assembler where
 
-import Control.Monad.Writer
-import Control.Monad.State
+import Control.Monad.Writer hiding (mapM)
+import Control.Monad.State hiding (mapM)
 
 import Data.List
+import Data.Sequence(Seq, (|>), (<|), (><), empty)
+import qualified Data.Sequence as S
 import Data.Char
 import Data.Ord
 import qualified Data.Map as Map
+import Data.Traversable
+import Data.Foldable(foldr)
+
+import Debug.Trace
+import Text.Show.Pretty
+
+import Prelude hiding (mapM)
 
 import ASM
 
@@ -29,13 +38,14 @@ toList (BFPrimitiveBlock ss) = ss
 
 type Assembler = WriterT BFPrimitiveBlock (State AssemblyEnv)
 
-prepareAssemblyEnv :: [BFSnippet] -> AssemblyEnv
+prepareAssemblyEnv :: Seq BFSnippet -> AssemblyEnv
 prepareAssemblyEnv snippets = AssemblyEnv ls "main"
   where isMainOrExit (BFSnippet "main" _ _) = True
         isMainOrExit (BFSnippet "$exit" _ _) = True
         isMainOrExit _ = False
-        snippets' = filter (not . isMainOrExit) snippets
-        ls = foldr addLabel (Map.fromList [("$exit", 2), ("main", 1)]) (zip snippets' [3..])
+        snippets' = S.filter (not . isMainOrExit) snippets
+        ls = Data.Foldable.foldr addLabel (Map.fromList [("$exit", 2), ("main", 1)])
+             (S.zip snippets' (S.fromList [3..S.length snippets' + 2]))
         addLabel (BFSnippet name _ _, n) m = Map.insert name n m
 
 getEnv :: Assembler AssemblyEnv
@@ -565,8 +575,8 @@ assemble (BFSnippet name body jump) = do
   e <- getEnv
   putEnv $ e { curBlock = name }
 
-  mapM_ assemble' body
-  mapM_ assemble' jump
+  mapM assemble' body
+  mapM assemble' jump
   return name
   where assemble' = (assembleInstruction =<<) . traceAssembler
 
@@ -589,11 +599,11 @@ preamble = do
 epilogue :: Assembler ()
 epilogue = return ()
 
-wrapBlocks' :: [(String, BFPrimitiveBlock)] -> Assembler ()
+wrapBlocks' :: Seq (String, BFPrimitiveBlock) -> Assembler ()
 wrapBlocks' ss = do
   preamble
   loop $ do
-    mapM_ putBlock ss
+    mapM putBlock ss
   epilogue
   where putBlock (n, b) = do
           loop $ do
@@ -606,20 +616,20 @@ wrapBlocks' ss = do
               dec; tell b; prev; prev
           next; next;
 
-wrapBlocks :: [(String, BFPrimitiveBlock)] -> Assembler ()
+wrapBlocks :: Seq (String, BFPrimitiveBlock) -> Assembler ()
 wrapBlocks ss = do
   env <- getEnv
-  let ss' = sortBy (comparing ((labels env Map.!) . fst)) ss
+  let ss' = S.sortBy (comparing ((labels env Map.!) . fst)) ss
   wrapBlocks' ss'
 
 
 
-assembleSnippets :: [BFSnippet] -> Assembler ()
+assembleSnippets :: Seq BFSnippet -> Assembler ()
 assembleSnippets ss = do
-  ss' <- mapM assembleSnippet (BFSnippet "$exit" [] [Push 0, Exit] : ss)
+  ss' <- mapM assembleSnippet (BFSnippet "$exit" empty (Push 0 <| Exit <| empty) <| ss)
   wrapBlocks ss'
 
-generateAssemblyFromSnippets :: [BFSnippet] -> BFPrimitiveBlock
+generateAssemblyFromSnippets :: Seq BFSnippet -> BFPrimitiveBlock
 generateAssemblyFromSnippets ss = asm
   where ((_, asm), _) = runState (runWriterT (assembleSnippets ss)) env
         env = prepareAssemblyEnv ss
