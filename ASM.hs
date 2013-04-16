@@ -32,7 +32,6 @@ instance Read BFPrimitive where
     [(p, xs')] -> [(p : ps, xs'')]
       where [(ps, xs'')] = readList xs'
 
-
 data BFASMInstruction = PopArg | Exit
                       | Pop | Push Int
                       | ASMInput | ASMOutput

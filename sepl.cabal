@@ -34,3 +34,7 @@ Executable TestCodeGenerator
   Main-is:           TestCodeGenerator.hs
   Build-Depends:     base, containers, mtl,
                      parsec
+
+Executable Debugger
+  Main-is:           Debugger.hs
+  Build-Depends:     base, containers, mtl, vty
