@@ -4,13 +4,13 @@ import Control.Monad.Writer hiding (mapM)
 import Control.Monad.State hiding (mapM)
 
 import Data.List
-import Data.Sequence(Seq, (|>), (<|), (><), empty)
+import Data.Sequence(Seq, (|>), (<|), (><), empty, singleton)
 import qualified Data.Sequence as S
 import Data.Char
 import Data.Ord
 import qualified Data.Map as Map
 import Data.Traversable
-import Data.Foldable(foldr)
+import Data.Foldable(foldr, toList)
 
 import Debug.Trace
 import Text.Show.Pretty
@@ -24,17 +24,14 @@ data AssemblyEnv = AssemblyEnv {
   curBlock :: String
 }
 
-data BFPrimitiveBlock = BFPrimitiveBlock [BFPrimitive]
+data BFPrimitiveBlock = BFPrimitiveBlock (Seq BFPrimitive)
 
 instance Monoid BFPrimitiveBlock where
-  mempty = BFPrimitiveBlock []
+  mempty = BFPrimitiveBlock empty
   mappend (BFPrimitiveBlock a) (BFPrimitiveBlock b) = BFPrimitiveBlock (mappend a b)
 
 instance Show BFPrimitiveBlock where
-  show (BFPrimitiveBlock a) = concatMap show a
-
-toList :: BFPrimitiveBlock -> [BFPrimitive]
-toList (BFPrimitiveBlock ss) = ss
+  show (BFPrimitiveBlock a) = concatMap show (toList a)
 
 type Assembler = WriterT BFPrimitiveBlock (State AssemblyEnv)
 
@@ -70,7 +67,7 @@ getLabel name = do
   return $ (labels e) Map.! name
 
 prim :: BFPrimitive -> Assembler ()
-prim = tell . BFPrimitiveBlock . (: [])
+prim = tell . BFPrimitiveBlock . singleton
 
 next = prim Next
 prev = prim Prev
@@ -581,7 +578,7 @@ assemble (BFSnippet name body jump) = do
   where assemble' = (assembleInstruction =<<) . traceAssembler
 
 actAndClear :: Assembler a -> Assembler (a, BFPrimitiveBlock)
-actAndClear act = censor (const (BFPrimitiveBlock [])) (listen act)
+actAndClear act = censor (const (BFPrimitiveBlock empty)) (listen act)
 
 assembleSnippet :: BFSnippet -> Assembler (String, BFPrimitiveBlock)
 assembleSnippet s = actAndClear (assemble s)
