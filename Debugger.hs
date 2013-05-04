@@ -67,7 +67,7 @@ step = do
     EndLoop -> do
         c <- use code
         cpos <- use codePos
-        codePos .= findMatchingPos Loop EndLoop (-1) c cpos 0
+        codePos .= findMatchingPos Loop EndLoop (-1) c cpos 0 - 1
 
   codePos += 1
   (==) <$> use codePos <*> (S.length <$> use code) -- return True if program ended
